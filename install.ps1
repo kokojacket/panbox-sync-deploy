@@ -41,8 +41,8 @@ Write-Host ""
 
 # 下载配置文件
 Write-Host "正在下载配置文件..." -ForegroundColor Blue
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/docker-compose.yml" -OutFile "docker-compose.yml"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/.env.example" -OutFile ".env.example"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/docker-compose.yml" -OutFile "docker-compose.yml"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/.env.example" -OutFile ".env.example"
 
 # 创建 .env 文件
 if (-not (Test-Path ".env")) {

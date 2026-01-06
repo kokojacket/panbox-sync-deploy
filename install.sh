@@ -42,8 +42,8 @@ echo ""
 
 # 下载配置文件
 echo -e "${BLUE}正在下载配置文件...${NC}"
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/docker-compose.yml
-curl -fsSL -o .env.example https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/.env.example
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/docker-compose.yml
+curl -fsSL -o .env.example https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/.env.example
 
 # 创建 .env 文件
 if [ ! -f .env ]; then

@@ -8,7 +8,7 @@
 
 ```bash
 # 下载 docker-compose.yml
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/docker-compose.yml
 
 # 启动服务
 docker-compose up -d
@@ -18,10 +18,10 @@ docker-compose up -d
 
 ```bash
 # Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/install.sh | bash
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/YOUR_USERNAME/panbox-sync-deploy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/install.ps1 | iex
 ```
 
 ## 环境变量
@@ -52,8 +52,8 @@ OPENLIST_URL=https://your-openlist-server.com
 
 ## 文档
 
-- [完整文档](https://github.com/YOUR_USERNAME/panbox-sync)
-- [问题反馈](https://github.com/YOUR_USERNAME/panbox-sync/issues)
+- [完整文档](https://github.com/kokojacket/panbox-sync)
+- [问题反馈](https://github.com/kokojacket/panbox-sync/issues)
 
 ## 许可证
 
