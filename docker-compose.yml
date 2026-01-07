@@ -1,90 +1,53 @@
 version: '3.8'
 
 services:
-  # PostgreSQL 数据库
-  db:
-    image: postgres:16-alpine
-    container_name: panbox-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-panbox}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?请设置数据库密码}
-      POSTGRES_DB: ${DB_NAME:-panbox_sync}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - panbox-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-panbox}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # PanBox Sync 后端
-  backend:
-    image: ghcr.io/YOUR_USERNAME/panbox-sync:latest
-    container_name: panbox-backend
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      # 数据库配置
-      DATABASE_URL: postgresql://${DB_USER:-panbox}:${DB_PASSWORD}@db:5432/${DB_NAME:-panbox_sync}
-
-      # 应用配置
-      SECRET_KEY: ${SECRET_KEY:?请设置 SECRET_KEY}
-      OPENLIST_URL: ${OPENLIST_URL:?请设置 OpenList 服务器地址}
-
-      # 并发配置
-      MAX_CONCURRENT_DOWNLOADS: ${MAX_CONCURRENT_DOWNLOADS:-3}
-      MAX_CONCURRENT_UPLOADS: ${MAX_CONCURRENT_UPLOADS:-2}
-      MAX_CONCURRENT_TRANSCODES: ${MAX_CONCURRENT_TRANSCODES:-2}
-
-      # 其他配置
-      GLOBAL_INTERVAL_MINUTES: ${GLOBAL_INTERVAL_MINUTES:-10}
-      MAX_RETRY_ATTEMPTS: ${MAX_RETRY_ATTEMPTS:-3}
-    volumes:
-      # 数据目录
-      - panbox_data:/app/data
-      - panbox_logs:/app/logs
-      - panbox_downloads:/app/downloads
+  panbox-sync:
+    image: kokojacket/panbox-sync:latest
+    container_name: panbox-sync
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    networks:
-      - panbox-network
+      # 可选：暴露内置 OpenList 端口（仅当 ENABLE_INTERNAL_OPENLIST=true 时需要）
+      # 格式：宿主机端口:容器内端口（容器内固定使用 5244）
+      - "${OPENLIST_PORT:-5244}:5244"
+    volumes:
+      # 挂载整个数据目录（包含数据库、下载、日志、上传文件）
+      # 对应 backend/app/config.py 中的 DATA_DIR = /app/backend/data
+      - ./data:/app/backend/data
+      # 挂载 Docker socket 用于容器管理（重启 OpenList）
+      # 注意：需要宿主机 docker 组权限，通过 group_add 或 chmod 666 解决
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 挂载内置 OpenList 数据目录（仅当 ENABLE_INTERNAL_OPENLIST=true 时使用）
+      - ./openlist-data:/app/openlist-data
+    # 添加 docker 组权限（自动检测，通过 .env 文件配置）
+    # 查看宿主机 GID: getent group docker
+    group_add:
+      - "${DOCKER_GID:-999}"  # 从 .env 读取，默认 999
+    environment:
+      # 生产模式（禁用自动重载以提升性能和稳定性）
+      - ENVIRONMENT=production
+      # 时区
+      - TZ=${TZ:-Asia/Shanghai}
+      # ========== 内置 OpenList 配置 ==========
+      # 设为 "true" 启用内置 OpenList（一体化模式，推荐）
+      # 设为 "false" 使用外部 OpenList 容器
+      - ENABLE_INTERNAL_OPENLIST=${ENABLE_INTERNAL_OPENLIST:-true}
+      # 内置 OpenList 数据目录（仅当 ENABLE_INTERNAL_OPENLIST=true 时使用）
+      - INTERNAL_OPENLIST_DATA=/app/openlist-data
+      # ========== 外部 OpenList 配置 ==========
+      # OpenList 容器名称，用于重启功能（仅当 ENABLE_INTERNAL_OPENLIST=false 时使用）
+      - OPENLIST_CONTAINER_NAME=${OPENLIST_CONTAINER_NAME:-openlist}
+      # 可选：覆盖默认设置
+      # - LOG_LEVEL=INFO
+      # - MAX_CONCURRENT_DOWNLOADS=3
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; import sys; (lambda: (urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).read(), sys.exit(0)) if True else sys.exit(1))() if __name__ == '__main__' else None"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 120s
 
-  # Nginx 反向代理（可选）
-  nginx:
-    image: nginx:alpine
-    container_name: panbox-nginx
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - panbox-network
-
-volumes:
-  postgres_data:
-    driver: local
-  panbox_data:
-    driver: local
-  panbox_logs:
-    driver: local
-  panbox_downloads:
-    driver: local
-
-networks:
-  panbox-network:
-    driver: bridge
+# 可选：添加网络配置
+# networks:
+#   default:
+#     name: panbox-sync-network
