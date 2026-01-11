@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/
 
 ```bash
 # 下载部署脚本（-O 参数强制覆盖）
-wget -O panbox-sync.sh https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh
+wget -O panbox-sync.sh https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh
 
 # 运行脚本
 sudo bash panbox-sync.sh
@@ -33,7 +33,7 @@ sudo bash panbox-sync.sh
 ```bash
 # 克隆仓库
 git clone https://github.com/kokojacket/panbox-sync-deploy.git
-cd panbox-sync-deploy/deploy
+cd panbox-sync-deploy
 
 # 运行部署脚本
 sudo bash panbox-sync.sh
