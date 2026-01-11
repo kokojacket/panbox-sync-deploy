@@ -12,8 +12,8 @@
 #   # 方法 2: 原始地址
 #   curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh | sudo bash
 #
-#   # 方法 3: 手动下载后执行
-#   wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh
+#   # 方法 3: 手动下载后执行（-O 参数强制覆盖）
+#   wget -O panbox-sync.sh https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh
 #   sudo bash panbox-sync.sh
 #==============================================================================
 

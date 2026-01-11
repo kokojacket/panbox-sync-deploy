@@ -21,8 +21,8 @@ curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/
 ### 方法 2：手动下载安装
 
 ```bash
-# 下载部署脚本
-wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh
+# 下载部署脚本（-O 参数强制覆盖）
+wget -O panbox-sync.sh https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh
 
 # 运行脚本
 sudo bash panbox-sync.sh
@@ -32,8 +32,8 @@ sudo bash panbox-sync.sh
 
 ```bash
 # 克隆仓库
-git clone https://github.com/kokojacket/openlist-sync.git
-cd openlist-sync/deploy
+git clone https://github.com/kokojacket/panbox-sync-deploy.git
+cd panbox-sync-deploy/deploy
 
 # 运行部署脚本
 sudo bash panbox-sync.sh
@@ -372,8 +372,8 @@ sudo bash panbox-sync.sh
 
 ## 技术支持
 
-- **GitHub Issues**：https://github.com/kokojacket/openlist-sync/issues
-- **文档**：https://github.com/kokojacket/openlist-sync/tree/main/docs
+- **GitHub Issues**：https://github.com/kokojacket/panbox-sync-deploy/issues
+- **文档**：https://github.com/kokojacket/panbox-sync-deploy/tree/main/docs
 
 ## 许可证
 
