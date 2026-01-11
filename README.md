@@ -9,20 +9,20 @@
 使用 gh-proxy.org 代理（国内用户推荐）：
 
 ```bash
-curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh | sudo bash
+curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh | sudo bash
 ```
 
 或使用原始地址：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh | sudo bash
 ```
 
 ### 方法 2：手动下载安装
 
 ```bash
 # 下载部署脚本
-wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh
+wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh
 
 # 运行脚本
 sudo bash panbox-sync.sh
