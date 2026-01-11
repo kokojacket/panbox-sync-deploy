@@ -7,13 +7,13 @@
 #
 # 快速安装（国内用户推荐使用代理加速）：
 #   # 方法 1: gh-proxy.org（推荐）
-#   curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh | sudo bash
+#   curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh | sudo bash
 #
 #   # 方法 2: 原始地址
-#   curl -fsSL https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh | sudo bash
 #
 #   # 方法 3: 手动下载后执行
-#   wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/panbox-sync.sh
+#   wget https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/panbox-sync.sh
 #   sudo bash panbox-sync.sh
 #==============================================================================
 
@@ -30,11 +30,11 @@ NC='\033[0m' # No Color
 INSTALL_DIR="/opt/panbox-sync"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 COMPOSE_URLS=(
-    "https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/docker-compose.yml"
-    "https://hk.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/docker-compose.yml"
-    "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/docker-compose.yml"
-    "https://edgeone.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/docker-compose.yml"
-    "https://raw.githubusercontent.com/kokojacket/openlist-sync/main/deploy/docker-compose.yml"
+    "https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/docker-compose.yml"
+    "https://hk.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/docker-compose.yml"
+    "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/docker-compose.yml"
+    "https://edgeone.gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/docker-compose.yml"
+    "https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/deploy/docker-compose.yml"
 )
 DOCKER_IMAGE="kokojacket/panbox-sync:latest"
 START_PORT=8000
