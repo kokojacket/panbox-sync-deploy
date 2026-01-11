@@ -156,12 +156,12 @@ find_available_port() {
             echo $port
             return 0
         fi
-        print_warning "端口 $port 已被占用，尝试下一个端口..."
+        print_warning "端口 $port 已被占用，尝试下一个端口..." >&2
         port=$((port + 1))
 
         # 防止无限循环，最多尝试 100 个端口
         if [ $port -gt $((START_PORT + 100)) ]; then
-            print_error "无法找到可用端口（已尝试 $START_PORT - $port）"
+            print_error "无法找到可用端口（已尝试 $START_PORT - $port）" >&2
             exit 1
         fi
     done
@@ -174,12 +174,12 @@ find_available_openlist_port() {
             echo $port
             return 0
         fi
-        print_warning "OpenList 端口 $port 已被占用，尝试下一个端口..."
+        print_warning "OpenList 端口 $port 已被占用，尝试下一个端口..." >&2
         port=$((port + 1))
 
         # 防止无限循环，最多尝试 100 个端口
         if [ $port -gt $((OPENLIST_START_PORT + 100)) ]; then
-            print_error "无法找到可用的 OpenList 端口（已尝试 $OPENLIST_START_PORT - $port）"
+            print_error "无法找到可用的 OpenList 端口（已尝试 $OPENLIST_START_PORT - $port）" >&2
             exit 1
         fi
     done
