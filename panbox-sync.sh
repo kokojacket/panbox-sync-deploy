@@ -194,28 +194,28 @@ get_public_ipv4() {
     local ip=""
 
     # 方法 1: ipify.org (强制 IPv4)
-    ip=$(curl -4 -s --connect-timeout 3 https://api.ipify.org 2>/dev/null)
+    ip=$(curl -4 -s --connect-timeout 3 --max-time 3 https://api.ipify.org 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$ip"
         return 0
     fi
 
     # 方法 2: ifconfig.me (强制 IPv4)
-    ip=$(curl -4 -s --connect-timeout 3 https://ifconfig.me 2>/dev/null)
+    ip=$(curl -4 -s --connect-timeout 3 --max-time 3 https://ifconfig.me 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$ip"
         return 0
     fi
 
     # 方法 3: icanhazip.com (强制 IPv4)
-    ip=$(curl -4 -s --connect-timeout 3 https://icanhazip.com 2>/dev/null)
+    ip=$(curl -4 -s --connect-timeout 3 --max-time 3 https://icanhazip.com 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$ip"
         return 0
     fi
 
     # 方法 4: ip.sb (强制 IPv4)
-    ip=$(curl -4 -s --connect-timeout 3 https://api.ip.sb/ip 2>/dev/null)
+    ip=$(curl -4 -s --connect-timeout 3 --max-time 3 https://api.ip.sb/ip 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$ip"
         return 0
@@ -229,21 +229,21 @@ get_public_ipv6() {
     local ip=""
 
     # 方法 1: ipify.org (强制 IPv6)
-    ip=$(curl -6 -s --connect-timeout 3 https://api64.ipify.org 2>/dev/null)
+    ip=$(curl -6 -s --connect-timeout 3 --max-time 3 https://api64.ipify.org 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ : ]]; then
         echo "$ip"
         return 0
     fi
 
     # 方法 2: icanhazip.com (强制 IPv6)
-    ip=$(curl -6 -s --connect-timeout 3 https://icanhazip.com 2>/dev/null)
+    ip=$(curl -6 -s --connect-timeout 3 --max-time 3 https://icanhazip.com 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ : ]]; then
         echo "$ip"
         return 0
     fi
 
     # 方法 3: ip.sb (强制 IPv6)
-    ip=$(curl -6 -s --connect-timeout 3 https://api.ip.sb/ip 2>/dev/null)
+    ip=$(curl -6 -s --connect-timeout 3 --max-time 3 https://api.ip.sb/ip 2>/dev/null || true)
     if [ -n "$ip" ] && [[ "$ip" =~ : ]]; then
         echo "$ip"
         return 0
@@ -330,6 +330,8 @@ download_with_retry() {
     local urls=("$@")
     local count=1
     local total=${#urls[@]}
+    local max_retries=3
+    local retry_delay=1
 
     for url in "${urls[@]}"; do
         # 提取代理名称或显示"原始地址"
@@ -346,15 +348,23 @@ download_with_retry() {
             source_name="GitHub 原始地址"
         fi
 
-        print_info "[$count/$total] 尝试下载: $source_name"
+        local attempt=1
+        while [ $attempt -le $max_retries ]; do
+            print_info "[$count/$total] 下载尝试 (${attempt}/${max_retries}): $source_name"
+            if curl -4 -fSsL --connect-timeout 3 --max-time 8 "$url" -o "$output_file"; then
+                print_success "配置文件下载成功"
+                return 0
+            fi
 
-        if curl -fsSL --connect-timeout 10 --max-time 60 "$url" -o "$output_file" 2>/dev/null; then
-            print_success "配置文件下载成功"
-            return 0
-        else
-            print_warning "下载失败，尝试下一个地址..."
-        fi
+            if [ $attempt -lt $max_retries ]; then
+                print_warning "下载超时或失败，${retry_delay} 秒后重试..."
+                sleep $retry_delay
+            fi
 
+            attempt=$((attempt + 1))
+        done
+
+        print_warning "当前地址连续失败，切换下一个下载源..."
         count=$((count + 1))
     done
 
@@ -572,65 +582,31 @@ stop_panbox() {
 show_access_info() {
     local backend_port=$1
 
-    print_header "访问地址"
-
-    # 获取公网 IPv4
-    print_info "正在获取公网 IPv4..."
     PUBLIC_IPV4=$(get_public_ipv4)
-
-    # 获取公网 IPv6
-    print_info "正在获取公网 IPv6..."
     PUBLIC_IPV6=$(get_public_ipv6)
-
-    # 获取内网 IPv4（内网只显示 IPv4）
-    print_info "正在获取内网 IP..."
     LOCAL_IPV4=$(get_local_ipv4)
 
-    echo -e "${GREEN}🎉 PanBox Sync 部署成功！${NC}"
     echo ""
-    echo "访问地址："
+    print_success "✅ 应用已成功启动！"
+    print_info "📍 最终访问路径"
 
-    # 显示公网 IPv4
-    if [ "$PUBLIC_IPV4" != "无法获取" ]; then
-        echo -e "  ${BLUE}http://$PUBLIC_IPV4:$backend_port${NC}"
-    fi
-
-    # 显示公网 IPv6
-    if [ "$PUBLIC_IPV6" != "无法获取" ]; then
-        echo -e "  ${BLUE}http://[$PUBLIC_IPV6]:$backend_port${NC}"
-    fi
-
-    # 如果两个公网 IP 都获取失败
-    if [ "$PUBLIC_IPV4" = "无法获取" ] && [ "$PUBLIC_IPV6" = "无法获取" ]; then
-        echo -e "  ${YELLOW}公网 IP: 无法获取（纯内网环境）${NC}"
-    fi
-
-    # 显示内网 IPv4
     if [ "$LOCAL_IPV4" != "无法获取" ]; then
-        echo -e "  ${BLUE}http://$LOCAL_IPV4:$backend_port${NC}"
+        echo "   内网地址：http://$LOCAL_IPV4:$backend_port"
     else
-        echo -e "  ${YELLOW}内网 IP: 无法获取${NC}"
+        echo "   内网地址：未检测到内网 IP"
+    fi
+
+    if [ "$PUBLIC_IPV4" != "无法获取" ]; then
+        echo "   外网地址：http://$PUBLIC_IPV4:$backend_port"
+    elif [ "$PUBLIC_IPV6" != "无法获取" ]; then
+        echo "   外网地址：http://[$PUBLIC_IPV6]:$backend_port"
+    else
+        echo "   外网地址：未检测到公网 IP"
     fi
 
     echo ""
-
-    # 根据获取到的 IP 类型给出不同提示
-    if [ "$PUBLIC_IPV6" != "无法获取" ] && [ "$PUBLIC_IPV4" = "无法获取" ]; then
-        echo -e "${YELLOW}提示：${NC}"
-        echo -e "  - 当前服务器仅有 IPv6 公网地址"
-        echo -e "  - IPv6 地址需要用方括号 [] 包裹"
-        echo -e "  - 建议使用内网 IPv4 地址访问（兼容性更好）"
-        echo ""
-    elif [ "$PUBLIC_IPV4" != "无法获取" ] && [ "$PUBLIC_IPV6" != "无法获取" ]; then
-        echo -e "${YELLOW}提示：${NC}"
-        echo -e "  - 优先使用 IPv4 地址访问（兼容性更好）"
-        echo -e "  - IPv6 地址需要用方括号 [] 包裹"
-        echo ""
-    fi
-
-    echo -e "${YELLOW}首次使用提示：${NC}"
-    echo -e "  - 请在 PanBox Sync 界面注册账号"
-    echo -e "  - 激活后即可登录使用"
+    print_warning "💾 请保存以上访问地址"
+    print_warning "首次使用：请在 PanBox Sync 界面注册账号并激活后登录"
     echo ""
 }
 
