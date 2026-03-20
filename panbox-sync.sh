@@ -28,6 +28,13 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
+DATA_ROOT="/data"
+OPENLIST_DATA_DIR="$DATA_ROOT/openlist"
+LEGACY_DATA_DIR="$INSTALL_DIR/data"
+LEGACY_OPENLIST_DATA_DIR="$INSTALL_DIR/openlist-data"
+MIGRATION_MARKER="$INSTALL_DIR/.data-root-migrated"
+APP_UID=10001
+APP_GID=10001
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 COMPOSE_URLS=(
     "https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/docker-compose.yml"
@@ -373,6 +380,149 @@ download_with_retry() {
 }
 
 #==============================================================================
+# 数据目录与迁移函数
+#==============================================================================
+
+directory_has_contents() {
+    local dir=$1
+    local entries=()
+
+    [ -d "$dir" ] || return 1
+
+    shopt -s nullglob dotglob
+    entries=("$dir"/*)
+    shopt -u nullglob dotglob
+
+    [ ${#entries[@]} -gt 0 ]
+}
+
+prepare_data_directories() {
+    print_info "准备数据目录..."
+    mkdir -p "$INSTALL_DIR" "$DATA_ROOT" "$OPENLIST_DATA_DIR"
+    chmod 755 "$DATA_ROOT" "$OPENLIST_DATA_DIR" 2>/dev/null || true
+}
+
+download_compose_file() {
+    local temp_file="$INSTALL_DIR/docker-compose.yml.tmp"
+
+    mkdir -p "$INSTALL_DIR"
+    print_info "下载配置文件..."
+
+    if download_with_retry "$temp_file" "${COMPOSE_URLS[@]}"; then
+        mv "$temp_file" "$INSTALL_DIR/docker-compose.yml"
+        return 0
+    fi
+
+    rm -f "$temp_file"
+    return 1
+}
+
+stop_existing_stack() {
+    if [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        return 0
+    fi
+
+    print_info "停止现有服务，确保迁移期间数据一致..."
+    if (cd "$INSTALL_DIR" && $DOCKER_COMPOSE_CMD down); then
+        print_success "现有服务已停止"
+    else
+        print_error "停止现有服务失败，请检查 Docker 状态"
+        return 1
+    fi
+}
+
+backup_directory_contents() {
+    local source_dir=$1
+    local label=$2
+    local backup_root="$INSTALL_DIR/backups"
+    local backup_dir="$backup_root/${label}-$(date +"%Y%m%d-%H%M%S")"
+
+    mkdir -p "$backup_dir"
+    print_warning "目标目录已有数据，先创建备份: $backup_dir"
+
+    if command -v rsync &> /dev/null; then
+        rsync -a "$source_dir/" "$backup_dir/"
+    else
+        cp -a "$source_dir/." "$backup_dir/"
+    fi
+}
+
+sync_directory_contents() {
+    local source_dir=$1
+    local target_dir=$2
+    local label=$3
+
+    mkdir -p "$target_dir"
+    print_info "迁移${label}: $source_dir -> $target_dir"
+
+    if command -v rsync &> /dev/null; then
+        rsync -a "$source_dir/" "$target_dir/"
+    else
+        cp -a "$source_dir/." "$target_dir/"
+    fi
+}
+
+ensure_data_permissions() {
+    chown -R "$APP_UID:$APP_GID" "$DATA_ROOT"
+}
+
+write_migration_marker() {
+    cat > "$MIGRATION_MARKER" <<EOF
+migrated_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+data_root=$DATA_ROOT
+legacy_data_dir=$LEGACY_DATA_DIR
+legacy_openlist_data_dir=$LEGACY_OPENLIST_DATA_DIR
+EOF
+}
+
+migrate_legacy_data_layout() {
+    local migration_needed=false
+
+    prepare_data_directories
+
+    if [ -f "$MIGRATION_MARKER" ]; then
+        print_info "已检测到数据目录迁移标记，跳过旧目录同步"
+        ensure_data_permissions
+        return 0
+    fi
+
+    if directory_has_contents "$LEGACY_DATA_DIR"; then
+        migration_needed=true
+    fi
+
+    if directory_has_contents "$LEGACY_OPENLIST_DATA_DIR"; then
+        migration_needed=true
+    fi
+
+    if [ "$migration_needed" = false ]; then
+        print_info "未检测到需要迁移的旧版数据目录"
+        ensure_data_permissions
+        return 0
+    fi
+
+    stop_existing_stack
+    print_info "检测到旧版数据目录，开始迁移到 $DATA_ROOT"
+
+    if directory_has_contents "$LEGACY_DATA_DIR"; then
+        if directory_has_contents "$DATA_ROOT"; then
+            backup_directory_contents "$DATA_ROOT" "panbox-data-pre-migration"
+        fi
+        sync_directory_contents "$LEGACY_DATA_DIR" "$DATA_ROOT" "PanBox Sync 数据"
+    fi
+
+    if directory_has_contents "$LEGACY_OPENLIST_DATA_DIR"; then
+        if directory_has_contents "$OPENLIST_DATA_DIR"; then
+            backup_directory_contents "$OPENLIST_DATA_DIR" "openlist-data-pre-migration"
+        fi
+        sync_directory_contents "$LEGACY_OPENLIST_DATA_DIR" "$OPENLIST_DATA_DIR" "OpenList 数据"
+    fi
+
+    ensure_data_permissions
+    write_migration_marker
+    print_success "旧版数据已迁移到 $DATA_ROOT，原目录保留为回滚备份"
+}
+
+#==============================================================================
 # .env 文件创建
 #==============================================================================
 
@@ -425,23 +575,10 @@ install_panbox() {
         fi
     fi
 
-    # 创建目录
-    print_info "创建数据目录..."
-    mkdir -p "$INSTALL_DIR/data"
-    mkdir -p "$INSTALL_DIR/openlist-data"
-
-    # 设置目录权限（容器使用 UID 10001 运行）
-    chown -R 10001:10001 "$INSTALL_DIR/data"
-    chown -R 10001:10001 "$INSTALL_DIR/openlist-data"
-
-    print_success "数据目录创建完成"
-
-    # 检测 Docker GID
     detect_docker_gid
+    prepare_data_directories
 
-    # 下载 docker-compose.yml（自动尝试多个备用地址）
-    print_info "下载配置文件..."
-    if ! download_with_retry "$INSTALL_DIR/docker-compose.yml" "${COMPOSE_URLS[@]}"; then
+    if ! download_compose_file; then
         exit 1
     fi
 
@@ -451,8 +588,8 @@ install_panbox() {
     AVAILABLE_OPENLIST_PORT=$(find_available_openlist_port)
     print_success "端口检测完成"
 
-    # 创建 .env 文件
     create_env_file
+    migrate_legacy_data_layout
 
     # 拉取镜像
     print_info "拉取 Docker 镜像..."
@@ -493,6 +630,14 @@ update_panbox() {
         print_error "未检测到已安装的 PanBox Sync，请先执行安装"
         exit 1
     fi
+
+    detect_docker_gid
+    prepare_data_directories
+    if ! download_compose_file; then
+        exit 1
+    fi
+    create_env_file
+    migrate_legacy_data_layout
 
     cd "$INSTALL_DIR"
 
