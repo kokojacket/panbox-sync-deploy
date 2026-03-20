@@ -28,11 +28,11 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-DATA_ROOT="/data"
+DATA_ROOT="$INSTALL_DIR/data"
 OPENLIST_DATA_DIR="$DATA_ROOT/openlist"
-LEGACY_DATA_DIR="$INSTALL_DIR/data"
+LEGACY_DATA_DIR="/data"
 LEGACY_OPENLIST_DATA_DIR="$INSTALL_DIR/openlist-data"
-MIGRATION_MARKER="$INSTALL_DIR/.data-root-migrated"
+MIGRATION_MARKER="$INSTALL_DIR/.path-strategy-a-migrated"
 APP_UID=10001
 APP_GID=10001
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
@@ -399,7 +399,7 @@ directory_has_contents() {
 prepare_data_directories() {
     print_info "准备数据目录..."
     mkdir -p "$INSTALL_DIR" "$DATA_ROOT" "$OPENLIST_DATA_DIR"
-    chmod 755 "$DATA_ROOT" "$OPENLIST_DATA_DIR" 2>/dev/null || true
+    chmod 755 "$INSTALL_DIR" "$DATA_ROOT" "$OPENLIST_DATA_DIR" 2>/dev/null || true
 }
 
 download_compose_file() {
@@ -451,15 +451,27 @@ sync_directory_contents() {
     local source_dir=$1
     local target_dir=$2
     local label=$3
+    local source_path
+    local relative_path
 
     mkdir -p "$target_dir"
-    print_info "迁移${label}: $source_dir -> $target_dir"
+    print_info "迁移${label}（仅补缺）: $source_dir -> $target_dir"
 
     if command -v rsync &> /dev/null; then
-        rsync -a "$source_dir/" "$target_dir/"
-    else
-        cp -a "$source_dir/." "$target_dir/"
+        rsync -a --ignore-existing "$source_dir/" "$target_dir/"
+        return
     fi
+
+    while IFS= read -r source_path; do
+        relative_path=${source_path#"$source_dir/"}
+
+        if [ -d "$source_path" ]; then
+            mkdir -p "$target_dir/$relative_path"
+        elif [ ! -e "$target_dir/$relative_path" ]; then
+            mkdir -p "$(dirname "$target_dir/$relative_path")"
+            cp -a "$source_path" "$target_dir/$relative_path"
+        fi
+    done < <(find "$source_dir" -mindepth 1 \( -type d -o -type f -o -type l \))
 }
 
 ensure_data_permissions() {
@@ -475,42 +487,81 @@ legacy_openlist_data_dir=$LEGACY_OPENLIST_DATA_DIR
 EOF
 }
 
+migration_marker_matches_target() {
+    [ -f "$MIGRATION_MARKER" ] || return 1
+    grep -Fxq "data_root=$DATA_ROOT" "$MIGRATION_MARKER"
+}
+
+directory_has_missing_entries() {
+    local source_dir=$1
+    local target_dir=$2
+    local rsync_output
+    local source_path
+    local relative_path
+
+    [ -d "$source_dir" ] || return 1
+
+    mkdir -p "$target_dir"
+
+    if command -v rsync &> /dev/null; then
+        rsync_output=$(rsync -ain --ignore-existing "$source_dir/" "$target_dir/")
+        [ -n "$rsync_output" ]
+        return
+    fi
+
+    while IFS= read -r source_path; do
+        relative_path=${source_path#"$source_dir/"}
+        if [ ! -e "$target_dir/$relative_path" ]; then
+            return 0
+        fi
+    done < <(find "$source_dir" -mindepth 1 \( -type d -o -type f -o -type l \))
+
+    return 1
+}
+
 migrate_legacy_data_layout() {
     local migration_needed=false
+    local legacy_data_needs_backfill=false
+    local legacy_openlist_needs_backfill=false
 
     prepare_data_directories
 
-    if [ -f "$MIGRATION_MARKER" ]; then
-        print_info "已检测到数据目录迁移标记，跳过旧目录同步"
+    if directory_has_contents "$LEGACY_DATA_DIR" && directory_has_missing_entries "$LEGACY_DATA_DIR" "$DATA_ROOT"; then
+        legacy_data_needs_backfill=true
+        migration_needed=true
+    fi
+
+    if directory_has_contents "$LEGACY_OPENLIST_DATA_DIR" && directory_has_missing_entries "$LEGACY_OPENLIST_DATA_DIR" "$OPENLIST_DATA_DIR"; then
+        legacy_openlist_needs_backfill=true
+        migration_needed=true
+    fi
+
+    if migration_marker_matches_target && [ "$migration_needed" = false ]; then
+        print_info "已检测到当前数据根迁移标记，且没有待补迁数据"
         ensure_data_permissions
         return 0
-    fi
-
-    if directory_has_contents "$LEGACY_DATA_DIR"; then
-        migration_needed=true
-    fi
-
-    if directory_has_contents "$LEGACY_OPENLIST_DATA_DIR"; then
-        migration_needed=true
+    elif [ -f "$MIGRATION_MARKER" ] && [ "$migration_needed" = true ]; then
+        print_warning "检测到旧迁移标记，但仍有历史数据需要补迁，将重新检查并迁移数据"
     fi
 
     if [ "$migration_needed" = false ]; then
-        print_info "未检测到需要迁移的旧版数据目录"
+        print_info "未检测到需要迁移或回迁的历史数据"
         ensure_data_permissions
         return 0
     fi
 
     stop_existing_stack
-    print_info "检测到旧版数据目录，开始迁移到 $DATA_ROOT"
 
-    if directory_has_contents "$LEGACY_DATA_DIR"; then
+    if [ "$legacy_data_needs_backfill" = true ]; then
+        print_warning "检测到宿主机 /data 中存在历史数据，开始按仅补缺策略回迁到 $DATA_ROOT"
         if directory_has_contents "$DATA_ROOT"; then
-            backup_directory_contents "$DATA_ROOT" "panbox-data-pre-migration"
+            backup_directory_contents "$DATA_ROOT" "panbox-data-pre-compat-backfill"
         fi
-        sync_directory_contents "$LEGACY_DATA_DIR" "$DATA_ROOT" "PanBox Sync 数据"
+        sync_directory_contents "$LEGACY_DATA_DIR" "$DATA_ROOT" "宿主机 /data 兼容回迁"
     fi
 
-    if directory_has_contents "$LEGACY_OPENLIST_DATA_DIR"; then
+    if [ "$legacy_openlist_needs_backfill" = true ]; then
+        print_info "检测到旧版 OpenList 数据目录，开始迁移到 $OPENLIST_DATA_DIR"
         if directory_has_contents "$OPENLIST_DATA_DIR"; then
             backup_directory_contents "$OPENLIST_DATA_DIR" "openlist-data-pre-migration"
         fi
@@ -519,7 +570,7 @@ migrate_legacy_data_layout() {
 
     ensure_data_permissions
     write_migration_marker
-    print_success "旧版数据已迁移到 $DATA_ROOT，原目录保留为回滚备份"
+    print_success "历史数据已同步到 $DATA_ROOT，原目录保留为回滚备份"
 }
 
 #==============================================================================

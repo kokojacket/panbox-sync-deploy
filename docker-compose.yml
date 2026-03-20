@@ -10,9 +10,9 @@ services:
       # 格式：宿主机端口:容器内端口（容器内固定使用 5244）
       - "${OPENLIST_PORT:-5244}:5244"
     volumes:
-      # 将宿主机 /data 作为统一后的 PanBox Sync 数据根（数据库、下载、上传、日志、OpenList）
-      # 对应 backend/app/config.py 中的 DATA_DIR = /data
-      - /data:/data
+      # 将安装目录下的 data 目录映射到容器 /data
+      # 管理脚本默认安装在 /opt/panbox-sync，因此宿主机实际路径为 /opt/panbox-sync/data
+      - ./data:/data
       # 挂载 Docker socket 用于容器管理（重启 OpenList）
       # 注意：需要宿主机 docker 组权限，通过 group_add 或 chmod 666 解决
       - /var/run/docker.sock:/var/run/docker.sock
