@@ -41,7 +41,7 @@ services:
       # - MAX_CONCURRENT_DOWNLOADS=3
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; import sys; (lambda: (urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).read(), sys.exit(0)) if True else sys.exit(1))() if __name__ == '__main__' else None"]
+      test: ["CMD", "python", "-c", "import urllib.request; import sys; (lambda: (urllib.request.urlopen('http://localhost:8000/api/ready', timeout=5).read(), sys.exit(0)) if True else sys.exit(1))() if __name__ == '__main__' else None"]
       interval: 30s
       timeout: 10s
       retries: 3
