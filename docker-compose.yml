@@ -10,14 +10,11 @@ services:
       # 格式：宿主机端口:容器内端口（容器内固定使用 5244）
       - "${OPENLIST_PORT:-5244}:5244"
     volumes:
-      # 挂载整个数据目录（包含数据库、下载、日志、上传文件）
-      # 对应 backend/app/config.py 中的 DATA_DIR = /app/backend/data
-      - ./data:/app/backend/data
+      # 挂载统一数据根（包含数据库、下载、上传、日志、OpenList 数据）
+      - ./data:/data
       # 挂载 Docker socket 用于容器管理（重启 OpenList）
       # 注意：需要宿主机 docker 组权限，通过 group_add 或 chmod 666 解决
       - /var/run/docker.sock:/var/run/docker.sock
-      # 挂载内置 OpenList 数据目录（仅当 ENABLE_INTERNAL_OPENLIST=true 时使用）
-      - ./openlist-data:/app/openlist-data
     # 添加 docker 组权限（自动检测，通过 .env 文件配置）
     # 查看宿主机 GID: getent group docker
     group_add:
@@ -25,14 +22,16 @@ services:
     environment:
       # 生产模式（禁用自动重载以提升性能和稳定性）
       - ENVIRONMENT=production
+      - PANBOX_SYNC_CONTAINER_MODE=true
+      - PANBOX_SYNC_DATA_DIR=/data
       # 时区
       - TZ=${TZ:-Asia/Shanghai}
       # ========== 内置 OpenList 配置 ==========
       # 设为 "true" 启用内置 OpenList（一体化模式，推荐）
       # 设为 "false" 使用外部 OpenList 容器
       - ENABLE_INTERNAL_OPENLIST=${ENABLE_INTERNAL_OPENLIST:-true}
-      # 内置 OpenList 数据目录（仅当 ENABLE_INTERNAL_OPENLIST=true 时使用）
-      - INTERNAL_OPENLIST_DATA=/app/openlist-data
+      # 内置 OpenList 数据目录（默认收口到统一数据根下）
+      - INTERNAL_OPENLIST_DATA=/data/openlist
       # ========== 外部 OpenList 配置 ==========
       # OpenList 容器名称，用于重启功能（仅当 ENABLE_INTERNAL_OPENLIST=false 时使用）
       - OPENLIST_CONTAINER_NAME=${OPENLIST_CONTAINER_NAME:-openlist}

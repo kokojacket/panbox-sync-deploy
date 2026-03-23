@@ -373,6 +373,66 @@ download_with_retry() {
 }
 
 #==============================================================================
+# 数据目录与迁移函数
+#==============================================================================
+
+ensure_data_directories() {
+    print_info "创建数据目录..."
+    mkdir -p "$INSTALL_DIR/data/openlist"
+    chown -R 10001:10001 "$INSTALL_DIR/data"
+    print_success "数据目录创建完成"
+}
+
+migrate_openlist_data_dir() {
+    local legacy_dir="$INSTALL_DIR/openlist-data"
+    local target_dir="$INSTALL_DIR/data/openlist"
+
+    if [ ! -d "$legacy_dir" ]; then
+        print_info "未检测到旧版 OpenList 数据目录，跳过迁移"
+        return 0
+    fi
+
+    if [ -z "$(find "$legacy_dir" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+        print_info "旧版 OpenList 数据目录为空，跳过迁移"
+        return 0
+    fi
+
+    mkdir -p "$target_dir"
+
+    print_info "迁移 OpenList 数据目录：$legacy_dir -> $target_dir"
+    cp -a "$legacy_dir"/. "$target_dir"/
+
+    local missing_count=0
+    while IFS= read -r relative_path; do
+        [ -z "$relative_path" ] && continue
+        if [ ! -e "$target_dir/$relative_path" ]; then
+            print_error "迁移校验失败，缺少文件：$relative_path"
+            missing_count=$((missing_count + 1))
+            break
+        fi
+    done < <(cd "$legacy_dir" && find . -mindepth 1 | sort)
+
+    if [ "$missing_count" -ne 0 ]; then
+        print_error "OpenList 数据迁移失败，请检查磁盘空间和目录权限"
+        exit 1
+    fi
+
+    chown -R 10001:10001 "$INSTALL_DIR/data"
+    print_success "OpenList 数据迁移完成，已确认复制成功"
+    print_warning "旧目录已保留为兼容备份：$legacy_dir"
+}
+
+stop_compose_services() {
+    print_info "停止 Compose 服务..."
+    if $DOCKER_COMPOSE_CMD down; then
+        print_success "Compose 服务已停止"
+    else
+        print_error "Compose 服务停止失败"
+        exit 1
+    fi
+}
+
+#==============================================================================
 # .env 文件创建
 #==============================================================================
 
@@ -418,23 +478,19 @@ install_panbox() {
     # 检查是否已安装
     if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
         print_warning "检测到已安装 PanBox Sync"
-        read -p "是否覆盖安装？[y/N]: " confirm < /dev/tty
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        read -p "是否切换为更新流程？[Y/n]: " confirm < /dev/tty
+        if [[ -n "$confirm" && ! "$confirm" =~ ^[Yy]$ ]]; then
             print_info "取消安装"
             return 0
         fi
+
+        print_info "已切换为更新流程..."
+        update_panbox
+        return 0
     fi
 
     # 创建目录
-    print_info "创建数据目录..."
-    mkdir -p "$INSTALL_DIR/data"
-    mkdir -p "$INSTALL_DIR/openlist-data"
-
-    # 设置目录权限（容器使用 UID 10001 运行）
-    chown -R 10001:10001 "$INSTALL_DIR/data"
-    chown -R 10001:10001 "$INSTALL_DIR/openlist-data"
-
-    print_success "数据目录创建完成"
+    ensure_data_directories
 
     # 检测 Docker GID
     detect_docker_gid
@@ -496,6 +552,19 @@ update_panbox() {
 
     cd "$INSTALL_DIR"
 
+    # 先停止旧版 Compose，再执行数据迁移和配置更新
+    stop_compose_services
+    ensure_data_directories
+    migrate_openlist_data_dir
+
+    # 更新 Compose 配置和环境变量
+    detect_docker_gid
+    print_info "下载最新配置文件..."
+    if ! download_with_retry "$INSTALL_DIR/docker-compose.yml" "${COMPOSE_URLS[@]}"; then
+        exit 1
+    fi
+    create_env_file
+
     # 拉取最新镜像
     print_info "拉取最新镜像..."
     if docker pull "$DOCKER_IMAGE"; then
@@ -505,8 +574,8 @@ update_panbox() {
         exit 1
     fi
 
-    # 重启服务
-    print_info "重启服务..."
+    # 使用新 Compose 配置启动服务
+    print_info "启动服务..."
     if $DOCKER_COMPOSE_CMD up -d; then
         print_success "服务更新成功"
     else
