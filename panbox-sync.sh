@@ -3,7 +3,7 @@
 #==============================================================================
 # PanBox Sync 管理脚本
 # 版本：1.0
-# 用途：安装、更新、重启、停止 PanBox Sync 文件同步系统
+# 用途：安装、更新、重启、停止、卸载 PanBox Sync 文件同步系统
 #
 # 快速安装（国内用户推荐使用代理加速）：
 #   # 方法 1: gh-proxy.org（推荐）
@@ -108,6 +108,11 @@ check_docker_compose() {
         DOCKER_COMPOSE_CMD="docker compose"
         print_success "Docker Compose 已安装: $(docker compose version)"
     fi
+}
+
+require_docker_runtime() {
+    check_docker
+    check_docker_compose
 }
 
 #==============================================================================
@@ -474,6 +479,7 @@ EOF
 
 install_panbox() {
     print_header "安装 PanBox Sync"
+    require_docker_runtime
 
     # 检查是否已安装
     if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
@@ -543,6 +549,7 @@ install_panbox() {
 
 update_panbox() {
     print_header "更新 PanBox Sync"
+    require_docker_runtime
 
     # 检查是否已安装
     if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
@@ -596,6 +603,7 @@ update_panbox() {
 
 restart_panbox() {
     print_header "重启 PanBox Sync"
+    require_docker_runtime
 
     # 检查是否已安装
     if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
@@ -626,6 +634,7 @@ restart_panbox() {
 
 stop_panbox() {
     print_header "停止 PanBox Sync"
+    require_docker_runtime
 
     # 检查是否已安装
     if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
@@ -642,6 +651,55 @@ stop_panbox() {
         print_error "服务停止失败"
         exit 1
     fi
+}
+
+uninstall_panbox() {
+    print_header "卸载 PanBox Sync"
+
+    if [ ! -d "$INSTALL_DIR" ]; then
+        print_warning "未检测到安装目录：$INSTALL_DIR"
+        return 0
+    fi
+
+    print_warning "此操作将完全卸载 PanBox Sync"
+    print_warning "将删除容器、网络、镜像，以及 $INSTALL_DIR 下的所有配置和数据"
+    read -p "确认继续卸载？[y/N]: " confirm < /dev/tty
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        print_info "已取消卸载"
+        return 0
+    fi
+
+    local compose_cmd=""
+    if command -v docker-compose &> /dev/null; then
+        compose_cmd="docker-compose"
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        compose_cmd="docker compose"
+    fi
+
+    if [ -n "$compose_cmd" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        cd "$INSTALL_DIR"
+        print_info "停止并删除 Compose 资源..."
+        if $compose_cmd down --remove-orphans; then
+            print_success "Compose 资源已删除"
+        else
+            print_warning "Compose 资源删除失败，继续清理本地文件"
+        fi
+    else
+        print_warning "未检测到可用的 Compose 环境，跳过 Compose 资源清理"
+    fi
+
+    if command -v docker &> /dev/null && docker image inspect "$DOCKER_IMAGE" > /dev/null 2>&1; then
+        print_info "删除 Docker 镜像..."
+        if docker image rm -f "$DOCKER_IMAGE" > /dev/null 2>&1; then
+            print_success "Docker 镜像已删除"
+        else
+            print_warning "Docker 镜像删除失败，可能仍被其他容器占用"
+        fi
+    fi
+
+    print_info "删除本地目录..."
+    rm -rf "$INSTALL_DIR"
+    print_success "PanBox Sync 已完全卸载"
 }
 
 #==============================================================================
@@ -703,6 +761,7 @@ EOF
     echo "  2) 更新 PanBox Sync"
     echo "  3) 重启 PanBox Sync"
     echo "  4) 停止 PanBox Sync"
+    echo "  5) 卸载 PanBox Sync（删除本地全部数据）"
     echo "  0) 退出"
     echo ""
 }
@@ -714,12 +773,10 @@ EOF
 main() {
     # 检查环境
     check_root
-    check_docker
-    check_docker_compose
 
     while true; do
         show_menu
-        read -p "请输入选项 [0-4]: " choice < /dev/tty
+        read -p "请输入选项 [0-5]: " choice < /dev/tty
 
         case $choice in
             1)
@@ -738,12 +795,16 @@ main() {
                 stop_panbox
                 read -p "按 Enter 键返回菜单..." < /dev/tty
                 ;;
+            5)
+                uninstall_panbox
+                read -p "按 Enter 键返回菜单..." < /dev/tty
+                ;;
             0)
                 print_info "退出脚本"
                 exit 0
                 ;;
             *)
-                print_error "无效选项，请输入 0-4"
+                print_error "无效选项，请输入 0-5"
                 sleep 2
                 ;;
         esac
