@@ -3,6 +3,7 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `docker-compose.yml`：修复 SmartDNS 容器启动命令，显式执行 `smartdns`，避免 Docker 将 `-f` 误识别为可执行文件导致更新失败。
 - `panbox-sync.sh`：新增启动时强制自更新流程，从远端下载最新脚本、校验语法、备份旧脚本并自动重启；检查或更新失败时停止执行，避免继续使用过期脚本。
 - `docker-compose.yml`：新增 `smartdns` 服务与固定桥接网络，PanBox Sync 容器默认使用 SmartDNS 解析并挂载统一数据目录。
 - `docker-compose.yml`：补充 `SMARTDNS_CONTAINER_NAME` 环境变量与 Docker socket 说明，支持后端管理 SmartDNS 容器配置。

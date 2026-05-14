@@ -4,7 +4,7 @@ services:
   smartdns:
     image: pymumu/smartdns:latest
     container_name: panbox-smartdns
-    command: ["-f", "-c", "/data/smartdns/smartdns.conf"]
+    command: ["smartdns", "-f", "-c", "/data/smartdns/smartdns.conf"]
     volumes:
       - ./data:/data
     networks:
