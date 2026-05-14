@@ -3,6 +3,7 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `panbox-sync.sh`：新增启动时强制自更新流程，从远端下载最新脚本、校验语法、备份旧脚本并自动重启；检查或更新失败时停止执行，避免继续使用过期脚本。
 - `docker-compose.yml`：新增 `smartdns` 服务与固定桥接网络，PanBox Sync 容器默认使用 SmartDNS 解析并挂载统一数据目录。
 - `docker-compose.yml`：补充 `SMARTDNS_CONTAINER_NAME` 环境变量与 Docker socket 说明，支持后端管理 SmartDNS 容器配置。
 - `panbox-sync.sh`：新增“应用网络优化（BBR / FQ / TCP Fast Open）”菜单项，可写入并应用常用 sysctl 网络参数。
