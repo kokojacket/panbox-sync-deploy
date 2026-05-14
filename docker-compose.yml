@@ -7,6 +7,7 @@ services:
     command: ["smartdns", "-f", "-c", "/data/smartdns/smartdns.conf"]
     volumes:
       - ./data:/data
+      - ./data/smartdns/log:/var/log/smartdns
     networks:
       panbox-network:
         ipv4_address: 172.28.0.53

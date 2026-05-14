@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.05.15.1"
+SCRIPT_VERSION="2026.05.15.2"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 SCRIPT_URLS=(
@@ -483,11 +483,10 @@ download_with_retry() {
 
 ensure_data_directories() {
     print_info "创建数据目录..."
-    mkdir -p "$INSTALL_DIR/data/openlist" "$INSTALL_DIR/data/smartdns"
+    mkdir -p "$INSTALL_DIR/data/openlist" "$INSTALL_DIR/data/smartdns/log"
 
     if [ ! -f "$INSTALL_DIR/data/smartdns/smartdns.conf" ]; then
         cat > "$INSTALL_DIR/data/smartdns/smartdns.conf" <<'EOF'
-bind [::]:53
 bind :53
 
 server 223.5.5.5
@@ -497,7 +496,12 @@ server 8.8.8.8
 cache-size 4096
 prefetch-domain yes
 serve-expired yes
+log-file /var/log/smartdns/smartdns.log
+log-level info
 EOF
+    elif grep -qx 'bind \[::\]:53' "$INSTALL_DIR/data/smartdns/smartdns.conf"; then
+        print_warning "检测到旧版默认 SmartDNS IPv6 监听配置，自动移除以提升兼容性"
+        sed -i.bak '/^bind \[::\]:53$/d' "$INSTALL_DIR/data/smartdns/smartdns.conf"
     fi
 
     chown -R 10001:10001 "$INSTALL_DIR/data"

@@ -3,6 +3,8 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `docker-compose.yml`：挂载 `data/smartdns/log` 到 SmartDNS 容器日志目录，便于在宿主机查看 `smartdns.log`。
+- `panbox-sync.sh`：SmartDNS 默认配置改为仅监听 IPv4，并为旧版自动生成配置移除 IPv6 通配监听，降低容器启动兼容性问题。
 - `panbox-sync.sh`：创建数据目录时自动生成缺失的 `data/smartdns/smartdns.conf`，避免 SmartDNS 因配置文件不存在启动失败。
 - `docker-compose.yml`：修复 SmartDNS 容器启动命令，显式执行 `smartdns`，避免 Docker 将 `-f` 误识别为可执行文件导致更新失败。
 - `panbox-sync.sh`：新增启动时强制自更新流程，从远端下载最新脚本、校验语法、备份旧脚本并自动重启；检查或更新失败时停止执行，避免继续使用过期脚本。
