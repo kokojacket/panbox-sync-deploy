@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.05.14.1"
+SCRIPT_VERSION="2026.05.15.1"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 SCRIPT_URLS=(
@@ -483,7 +483,23 @@ download_with_retry() {
 
 ensure_data_directories() {
     print_info "创建数据目录..."
-    mkdir -p "$INSTALL_DIR/data/openlist"
+    mkdir -p "$INSTALL_DIR/data/openlist" "$INSTALL_DIR/data/smartdns"
+
+    if [ ! -f "$INSTALL_DIR/data/smartdns/smartdns.conf" ]; then
+        cat > "$INSTALL_DIR/data/smartdns/smartdns.conf" <<'EOF'
+bind [::]:53
+bind :53
+
+server 223.5.5.5
+server 119.29.29.29
+server 8.8.8.8
+
+cache-size 4096
+prefetch-domain yes
+serve-expired yes
+EOF
+    fi
+
     chown -R 10001:10001 "$INSTALL_DIR/data"
     print_success "数据目录创建完成"
 }
