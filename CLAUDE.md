@@ -10,8 +10,9 @@
 
 ## SmartDNS 注意事项
 
-- `docker-compose.yml` 中 `smartdns` 服务必须显式执行 `smartdns`，不要让 `command` 以 `-f` 等参数开头。
-- SmartDNS 配置路径是容器内 `/data/smartdns/smartdns.conf`，对应宿主机 `/opt/panbox-sync/data/smartdns/smartdns.conf`。
+- `docker-compose.yml` 中 `smartdns` 服务应优先使用镜像默认启动入口，不要自定义 `command` 覆盖镜像行为。
+- SmartDNS 配置在宿主机统一保存为 `/opt/panbox-sync/data/smartdns/smartdns.conf`，容器内只读挂载到 `/etc/smartdns/smartdns.conf`。
+- `smartdns` 服务应声明容器内 `53/udp` 与 `53/tcp`，不暴露到宿主机端口。
 - SmartDNS 日志目录必须挂载到宿主机 `data/smartdns/log`，方便排查 `/var/log/smartdns/smartdns.log` 中的启动失败原因。
 - `panbox-sync.sh` 的数据目录初始化必须创建 `data/smartdns/log`，并仅在 `smartdns.conf` 缺失时生成默认配置；不要覆盖用户已有配置。
 

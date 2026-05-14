@@ -4,9 +4,11 @@ services:
   smartdns:
     image: pymumu/smartdns:latest
     container_name: panbox-smartdns
-    command: ["smartdns", "-f", "-c", "/data/smartdns/smartdns.conf"]
+    expose:
+      - "53/udp"
+      - "53/tcp"
     volumes:
-      - ./data:/data
+      - ./data/smartdns/smartdns.conf:/etc/smartdns/smartdns.conf:ro
       - ./data/smartdns/log:/var/log/smartdns
     networks:
       panbox-network:

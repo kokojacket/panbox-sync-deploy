@@ -3,6 +3,7 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `docker-compose.yml`：SmartDNS 服务改用镜像默认启动入口，将配置文件只读挂载到 `/etc/smartdns/smartdns.conf`，并声明容器内 `53/udp` 与 `53/tcp`。
 - `docker-compose.yml`：挂载 `data/smartdns/log` 到 SmartDNS 容器日志目录，便于在宿主机查看 `smartdns.log`。
 - `panbox-sync.sh`：SmartDNS 默认配置改为仅监听 IPv4，并为旧版自动生成配置移除 IPv6 通配监听，降低容器启动兼容性问题。
 - `panbox-sync.sh`：创建数据目录时自动生成缺失的 `data/smartdns/smartdns.conf`，避免 SmartDNS 因配置文件不存在启动失败。
