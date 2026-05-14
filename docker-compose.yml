@@ -1,18 +1,31 @@
 version: '3.8'
 
 services:
+  smartdns:
+    image: pymumu/smartdns:latest
+    container_name: panbox-smartdns
+    command: ["-f", "-c", "/data/smartdns/smartdns.conf"]
+    volumes:
+      - ./data:/data
+    networks:
+      panbox-network:
+        ipv4_address: 172.28.0.53
+    restart: unless-stopped
+
   panbox-sync:
     image: kokojacket/panbox-sync:latest
     container_name: panbox-sync
+    depends_on:
+      - smartdns
     ports:
       - "${BACKEND_PORT:-8000}:8000"
       # 可选：暴露内置 OpenList 端口（仅当 ENABLE_INTERNAL_OPENLIST=true 时需要）
       # 格式：宿主机端口:容器内端口（容器内固定使用 5244）
       - "${OPENLIST_PORT:-5244}:5244"
     volumes:
-      # 挂载统一数据根（包含数据库、下载、上传、日志、OpenList 数据）
+      # 挂载统一数据根（包含数据库、下载、上传、日志、OpenList、SmartDNS 数据）
       - ./data:/data
-      # 挂载 Docker socket 用于容器管理（重启 OpenList）
+      # 挂载 Docker socket 用于容器管理（重启 OpenList / SmartDNS）
       # 注意：需要宿主机 docker 组权限，通过 group_add 或 chmod 666 解决
       - /var/run/docker.sock:/var/run/docker.sock
     # 添加 docker 组权限（自动检测，通过 .env 文件配置）
@@ -32,12 +45,17 @@ services:
       - ENABLE_INTERNAL_OPENLIST=${ENABLE_INTERNAL_OPENLIST:-true}
       # 内置 OpenList 数据目录（默认收口到统一数据根下）
       - INTERNAL_OPENLIST_DATA=/data/openlist
-      # ========== 外部 OpenList 配置 ==========
-      # OpenList 容器名称，用于重启功能（仅当 ENABLE_INTERNAL_OPENLIST=false 时使用）
+      # ========== Docker 容器管理 ==========
       - OPENLIST_CONTAINER_NAME=${OPENLIST_CONTAINER_NAME:-openlist}
+      - SMARTDNS_CONTAINER_NAME=${SMARTDNS_CONTAINER_NAME:-panbox-smartdns}
       # 可选：覆盖默认设置
       # - LOG_LEVEL=INFO
       # - MAX_CONCURRENT_DOWNLOADS=3
+    dns:
+      - 172.28.0.53
+    networks:
+      panbox-network:
+        ipv4_address: 172.28.0.10
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; import sys; (lambda: (urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).read(), sys.exit(0)) if True else sys.exit(1))() if __name__ == '__main__' else None"]
@@ -46,7 +64,10 @@ services:
       retries: 3
       start_period: 120s
 
-# 可选：添加网络配置
-# networks:
-#   default:
-#     name: panbox-sync-network
+networks:
+  panbox-network:
+    name: panbox-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

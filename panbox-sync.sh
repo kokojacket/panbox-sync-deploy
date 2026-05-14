@@ -474,6 +474,36 @@ EOF
 }
 
 #==============================================================================
+# sysctl 网络优化函数
+#==============================================================================
+
+set_sysctl_value() {
+    local key="$1"
+    local value="$2"
+    local config_file="/etc/sysctl.conf"
+
+    if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$config_file"; then
+        sed -i "s|^[[:space:]]*${key}[[:space:]]*=.*|${key}=${value}|" "$config_file"
+    else
+        printf '\n%s=%s\n' "$key" "$value" >> "$config_file"
+    fi
+}
+
+apply_network_sysctl_optimizations() {
+    print_info "应用网络优化配置..."
+
+    set_sysctl_value "net.core.default_qdisc" "fq"
+    set_sysctl_value "net.ipv4.tcp_congestion_control" "bbr"
+    set_sysctl_value "net.ipv4.tcp_fastopen" "3"
+
+    if sysctl -p; then
+        print_success "网络优化配置已应用"
+    else
+        print_warning "sysctl -p 执行失败，请手动检查 /etc/sysctl.conf 配置"
+    fi
+}
+
+#==============================================================================
 # 安装函数
 #==============================================================================
 
@@ -762,6 +792,7 @@ EOF
     echo "  3) 重启 PanBox Sync"
     echo "  4) 停止 PanBox Sync"
     echo "  5) 卸载 PanBox Sync（删除本地全部数据）"
+    echo "  6) 应用网络优化（BBR / FQ / TCP Fast Open）"
     echo "  0) 退出"
     echo ""
 }
@@ -776,7 +807,7 @@ main() {
 
     while true; do
         show_menu
-        read -p "请输入选项 [0-5]: " choice < /dev/tty
+        read -p "请输入选项 [0-6]: " choice < /dev/tty
 
         case $choice in
             1)
@@ -799,12 +830,16 @@ main() {
                 uninstall_panbox
                 read -p "按 Enter 键返回菜单..." < /dev/tty
                 ;;
+            6)
+                apply_network_sysctl_optimizations
+                read -p "按 Enter 键返回菜单..." < /dev/tty
+                ;;
             0)
                 print_info "退出脚本"
                 exit 0
                 ;;
             *)
-                print_error "无效选项，请输入 0-5"
+                print_error "无效选项，请输入 0-6"
                 sleep 2
                 ;;
         esac
