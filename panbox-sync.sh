@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.05.15.3"
+SCRIPT_VERSION="2026.05.15.4"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 SCRIPT_URLS=(
@@ -488,16 +488,60 @@ ensure_data_directories() {
     if [ ! -f "$INSTALL_DIR/data/smartdns/smartdns.conf" ]; then
         cat > "$INSTALL_DIR/data/smartdns/smartdns.conf" <<'EOF'
 bind :53
+bind-tcp :53
 
-server 223.5.5.5
-server 119.29.29.29
-server 8.8.8.8
+# 日志别长期 debug，太吵也影响性能
+log-level info
+log-console yes
 
-cache-size 4096
+# 关闭 IPv6 查询，适合你现在这个没有 IPv6 的 Docker/VPS 环境
+force-AAAA-SOA yes
+dualstack-ip-selection no
+
+# 缓存，网盘下载很吃这个
+cache-size 10000
+cache-persist yes
+cache-file /etc/smartdns/smartdns.cache
 prefetch-domain yes
 serve-expired yes
-log-file /var/log/smartdns/smartdns.log
-log-level info
+
+# TTL 稳一点，避免 CDN 来回漂
+rr-ttl-min 300
+rr-ttl-max 3600
+
+# 默认上游
+server 223.6.6.6
+server 223.5.5.5
+server 119.29.29.29
+
+# 百度组
+server 180.76.76.76 -group baidu -exclude-default-group
+server 180.184.1.1  -group baidu -exclude-default-group
+server 180.184.2.2  -group baidu -exclude-default-group
+
+nameserver /baidu.com/baidu
+nameserver /bdstatic.com/baidu
+nameserver /baidupcs.com/baidu
+nameserver /bcebos.com/baidu
+nameserver /d.pcs.baidu.com/baidu
+nameserver /pan.baidu.com/baidu
+
+# 百度下载
+domain-rules /baidupcs.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /bcebos.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /d.pcs.baidu.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /pan.baidu.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+
+# 夸克 / UC
+domain-rules /pds.quark.cn/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /drive.quark.cn/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /pan.quark.cn/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /uc123.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /drive.uc.cn/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+
+# 阿里云盘 / OSS/CDN
+domain-rules /alipan.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
+domain-rules /aliyuncs.com/ -speed-check-mode tcp:80,tcp:443 -response-mode fastest-ip
 EOF
     elif grep -qx 'bind \[::\]:53' "$INSTALL_DIR/data/smartdns/smartdns.conf"; then
         print_warning "检测到旧版默认 SmartDNS IPv6 监听配置，自动移除以提升兼容性"
