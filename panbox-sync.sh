@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.05.15.4"
+SCRIPT_VERSION="2026.05.27.1"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 SCRIPT_URLS=(
@@ -667,6 +667,20 @@ apply_network_sysctl_optimizations() {
     fi
 }
 
+prompt_network_sysctl_optimizations() {
+    echo ""
+    print_info "推荐在初次安装时应用网络优化（BBR / FQ / TCP Fast Open），可提升大文件传输体验"
+    print_warning "该操作会修改宿主机 /etc/sysctl.conf 并立即应用系统网络参数"
+    read -p "是否应用推荐网络优化？[Y/n]: " confirm < /dev/tty
+
+    if [[ -n "$confirm" && ! "$confirm" =~ ^[Yy]$ ]]; then
+        print_info "已跳过网络优化"
+        return 0
+    fi
+
+    apply_network_sysctl_optimizations
+}
+
 #==============================================================================
 # 安装函数
 #==============================================================================
@@ -694,6 +708,9 @@ install_panbox() {
 
     # 检测 Docker GID
     detect_docker_gid
+
+    # 推荐应用宿主机网络优化
+    prompt_network_sysctl_optimizations
 
     # 下载 docker-compose.yml（自动尝试多个备用地址）
     print_info "下载配置文件..."
