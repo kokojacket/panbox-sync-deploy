@@ -3,6 +3,9 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `panbox-sync.sh`：新增“增加空间”菜单项，可输入宿主机路径并自动创建 `<路径>/panbox-sync-disk`，挂载到容器内 `/data/disks/disk-N`。
+- `panbox-sync.sh`：新增本地 `docker-compose.extra.yml` override 机制，并统一 Compose 调用入口，确保安装、更新、重启、停止、卸载与额外空间重建都会保留本地挂载。
+- `docker-compose.yml`：显式声明 `PANBOX_SYNC_EXTRA_DOWNLOAD_ROOT=/data/disks`，与脚本新增空间的容器内受控挂载路径保持一致。
 - `panbox-sync.sh`：更新首次生成的 SmartDNS 默认配置，启用控制台日志、TCP 53 监听、持久缓存、IPv6 查询抑制与网盘域名测速规则。
 - `docker-compose.yml`：SmartDNS 服务改用镜像默认启动入口，将配置文件只读挂载到 `/etc/smartdns/smartdns.conf`，并声明容器内 `53/udp` 与 `53/tcp`。
 - `docker-compose.yml`：挂载 `data/smartdns/log` 到 SmartDNS 容器日志目录，便于在宿主机查看 `smartdns.log`。

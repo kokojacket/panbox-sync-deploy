@@ -40,6 +40,7 @@ services:
       - ENVIRONMENT=production
       - PANBOX_SYNC_CONTAINER_MODE=true
       - PANBOX_SYNC_DATA_DIR=/data
+      - PANBOX_SYNC_EXTRA_DOWNLOAD_ROOT=/data/disks
       # 时区
       - TZ=${TZ:-Asia/Shanghai}
       # ========== 内置 OpenList 配置 ==========

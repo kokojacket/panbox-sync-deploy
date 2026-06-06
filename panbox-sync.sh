@@ -2,7 +2,7 @@
 
 #==============================================================================
 # PanBox Sync 管理脚本
-# 版本：2026.05.14.1
+# 版本：2026.06.06.1
 # 用途：安装、更新、重启、停止、卸载 PanBox Sync 文件同步系统
 #
 # 快速安装（国内用户推荐使用代理加速）：
@@ -28,8 +28,10 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.05.27.1"
+SCRIPT_VERSION="2026.06.06.1"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
+EXTRA_COMPOSE_FILE="$INSTALL_DIR/docker-compose.extra.yml"
+EXTRA_DISK_MOUNT_ROOT="/data/disks"
 # 多个备用 URL，依次尝试（国内加速镜像 + 原始地址）
 SCRIPT_URLS=(
     "https://gh-proxy.org/https://raw.githubusercontent.com/kokojacket/panbox-sync-deploy/main/panbox-sync.sh"
@@ -123,6 +125,20 @@ check_docker_compose() {
 require_docker_runtime() {
     check_docker
     check_docker_compose
+}
+
+run_compose() {
+    if [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        print_error "未找到 Compose 配置：$INSTALL_DIR/docker-compose.yml"
+        return 1
+    fi
+
+    local compose_files=("-f" "$INSTALL_DIR/docker-compose.yml")
+    if [ -f "$EXTRA_COMPOSE_FILE" ]; then
+        compose_files+=("-f" "$EXTRA_COMPOSE_FILE")
+    fi
+
+    $DOCKER_COMPOSE_CMD --project-directory "$INSTALL_DIR" "${compose_files[@]}" "$@"
 }
 
 #==============================================================================
@@ -593,11 +609,174 @@ migrate_openlist_data_dir() {
 
 stop_compose_services() {
     print_info "停止 Compose 服务..."
-    if $DOCKER_COMPOSE_CMD down; then
+    if run_compose down; then
         print_success "Compose 服务已停止"
     else
         print_error "Compose 服务停止失败"
         exit 1
+    fi
+}
+
+#==============================================================================
+# 额外空间挂载函数
+#==============================================================================
+
+escape_yaml_double_quoted() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    printf "%s" "$value"
+}
+
+validate_extra_disk_base_dir() {
+    local base_dir="$1"
+
+    if [ -z "$base_dir" ]; then
+        print_error "宿主机路径不能为空"
+        return 1
+    fi
+
+    if [[ "$base_dir" != /* ]]; then
+        print_error "请输入绝对路径，例如：/data"
+        return 1
+    fi
+
+    if [[ "$base_dir" == *$'\n'* || "$base_dir" == *:* || "$base_dir" == *\"* || "$base_dir" == *\\* ]]; then
+        print_error "路径不能包含换行、冒号、双引号或反斜杠"
+        return 1
+    fi
+
+    case "$base_dir" in
+        /|/bin|/boot|/dev|/etc|/lib|/lib64|/proc|/root|/run|/sbin|/sys|/usr|/var)
+            print_error "该路径过于敏感，请选择专用数据目录，例如：/data"
+            return 1
+            ;;
+    esac
+
+    return 0
+}
+
+resolve_directory_path() {
+    local dir="$1"
+    local parent_dir
+    local base_name
+
+    parent_dir="$(dirname "$dir")"
+    base_name="$(basename "$dir")"
+
+    if [ ! -d "$parent_dir" ]; then
+        print_error "父目录不存在：$parent_dir"
+        return 1
+    fi
+
+    local resolved_parent
+    resolved_parent="$(cd "$parent_dir" && pwd -P)" || return 1
+    printf "%s/%s\n" "$resolved_parent" "$base_name"
+}
+
+collect_extra_disk_hosts() {
+    if [ ! -f "$EXTRA_COMPOSE_FILE" ]; then
+        return 0
+    fi
+
+    grep -E '^[[:space:]]*-[[:space:]]*"/.+:/data/disks/disk-[0-9]+"[[:space:]]*$' "$EXTRA_COMPOSE_FILE" \
+        | sed -E 's/^[[:space:]]*-[[:space:]]*"(.*):\/data\/disks\/disk-[0-9]+"[[:space:]]*$/\1/' \
+        || true
+}
+
+write_extra_compose_file() {
+    local hosts=("$@")
+    local tmp_file
+    tmp_file="$(mktemp)"
+
+    {
+        echo "version: '3.8'"
+        echo ""
+        echo "services:"
+        echo "  panbox-sync:"
+        echo "    volumes:"
+
+        local index=1
+        local host_path
+        for host_path in "${hosts[@]}"; do
+            [ -z "$host_path" ] && continue
+            echo "      - \"$(escape_yaml_double_quoted "$host_path"):${EXTRA_DISK_MOUNT_ROOT}/disk-${index}\""
+            index=$((index + 1))
+        done
+    } > "$tmp_file"
+
+    mv "$tmp_file" "$EXTRA_COMPOSE_FILE"
+}
+
+add_extra_space() {
+    print_header "增加空间"
+    require_docker_runtime
+
+    if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        print_error "未检测到已安装的 PanBox Sync，请先执行安装"
+        exit 1
+    fi
+
+    echo "请输入宿主机数据路径，例如：/data"
+    read -r -p "宿主机路径: " base_dir < /dev/tty
+
+    if ! validate_extra_disk_base_dir "$base_dir"; then
+        return 1
+    fi
+
+    local disk_dir="$base_dir/panbox-sync-disk"
+    local resolved_disk_dir
+
+    mkdir -p "$disk_dir" || {
+        print_error "创建目录失败：$disk_dir"
+        return 1
+    }
+
+    resolved_disk_dir="$(resolve_directory_path "$disk_dir")" || return 1
+
+    if [ ! -w "$resolved_disk_dir" ]; then
+        print_error "目录不可写：$resolved_disk_dir"
+        return 1
+    fi
+
+    chown -R 10001:10001 "$resolved_disk_dir" || {
+        print_error "设置目录权限失败：$resolved_disk_dir"
+        return 1
+    }
+
+    local existing_hosts=()
+    local existing_host
+    while IFS= read -r existing_host; do
+        [ -z "$existing_host" ] && continue
+        existing_hosts+=("$existing_host")
+    done < <(collect_extra_disk_hosts)
+
+    for existing_host in "${existing_hosts[@]}"; do
+        if [ "$existing_host" = "$resolved_disk_dir" ]; then
+            print_warning "该目录已添加过：$resolved_disk_dir"
+            print_info "将使用现有额外挂载配置重建服务"
+            if run_compose up -d; then
+                print_success "服务已重建，额外挂载保持不变"
+                return 0
+            fi
+            print_error "服务重建失败"
+            return 1
+        fi
+    done
+
+    existing_hosts+=("$resolved_disk_dir")
+    write_extra_compose_file "${existing_hosts[@]}"
+
+    print_success "额外空间已写入：$EXTRA_COMPOSE_FILE"
+    print_info "宿主机目录：$resolved_disk_dir"
+    print_info "容器内路径：${EXTRA_DISK_MOUNT_ROOT}/disk-${#existing_hosts[@]}"
+    print_info "正在重建服务以应用挂载..."
+
+    if run_compose up -d; then
+        print_success "额外空间已生效"
+    else
+        print_error "服务重建失败，请检查 Compose 配置"
+        return 1
     fi
 }
 
@@ -739,7 +918,7 @@ install_panbox() {
 
     # 启动服务
     print_info "启动服务..."
-    if $DOCKER_COMPOSE_CMD up -d; then
+    if run_compose up -d; then
         print_success "服务启动成功"
     else
         print_error "服务启动失败"
@@ -794,7 +973,7 @@ update_panbox() {
 
     # 使用新 Compose 配置启动服务
     print_info "启动服务..."
-    if $DOCKER_COMPOSE_CMD up -d; then
+    if run_compose up -d; then
         print_success "服务更新成功"
     else
         print_error "服务更新失败"
@@ -825,7 +1004,7 @@ restart_panbox() {
     cd "$INSTALL_DIR"
 
     print_info "重启服务..."
-    if $DOCKER_COMPOSE_CMD restart; then
+    if run_compose restart; then
         print_success "服务重启成功"
     else
         print_error "服务重启失败"
@@ -856,7 +1035,7 @@ stop_panbox() {
     cd "$INSTALL_DIR"
 
     print_info "停止服务..."
-    if $DOCKER_COMPOSE_CMD down; then
+    if run_compose down; then
         print_success "服务已停止"
     else
         print_error "服务停止失败"
@@ -889,8 +1068,9 @@ uninstall_panbox() {
 
     if [ -n "$compose_cmd" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
         cd "$INSTALL_DIR"
+        DOCKER_COMPOSE_CMD="$compose_cmd"
         print_info "停止并删除 Compose 资源..."
-        if $compose_cmd down --remove-orphans; then
+        if run_compose down --remove-orphans; then
             print_success "Compose 资源已删除"
         else
             print_warning "Compose 资源删除失败，继续清理本地文件"
@@ -971,8 +1151,9 @@ EOF
     echo "  2) 更新 PanBox Sync"
     echo "  3) 重启 PanBox Sync"
     echo "  4) 停止 PanBox Sync"
-    echo "  5) 卸载 PanBox Sync（删除本地全部数据）"
-    echo "  6) 应用网络优化（BBR / FQ / TCP Fast Open）"
+    echo "  5) 增加空间"
+    echo "  6) 卸载 PanBox Sync（删除本地全部数据）"
+    echo "  7) 应用网络优化（BBR / FQ / TCP Fast Open）"
     echo "  0) 退出"
     echo ""
 }
@@ -988,7 +1169,7 @@ main() {
 
     while true; do
         show_menu
-        read -p "请输入选项 [0-6]: " choice < /dev/tty
+        read -p "请输入选项 [0-7]: " choice < /dev/tty
 
         case $choice in
             1)
@@ -1008,10 +1189,14 @@ main() {
                 read -p "按 Enter 键返回菜单..." < /dev/tty
                 ;;
             5)
-                uninstall_panbox
+                add_extra_space
                 read -p "按 Enter 键返回菜单..." < /dev/tty
                 ;;
             6)
+                uninstall_panbox
+                read -p "按 Enter 键返回菜单..." < /dev/tty
+                ;;
+            7)
                 apply_network_sysctl_optimizations
                 read -p "按 Enter 键返回菜单..." < /dev/tty
                 ;;
@@ -1020,7 +1205,7 @@ main() {
                 exit 0
                 ;;
             *)
-                print_error "无效选项，请输入 0-6"
+                print_error "无效选项，请输入 0-7"
                 sleep 2
                 ;;
         esac
