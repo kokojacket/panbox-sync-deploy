@@ -14,6 +14,11 @@ services:
       panbox-network:
         ipv4_address: 172.28.0.53
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   panbox-sync:
     image: kokojacket/panbox-sync:latest
@@ -61,6 +66,11 @@ services:
       panbox-network:
         ipv4_address: 172.28.0.10
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; import sys; (lambda: (urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).read(), sys.exit(0)) if True else sys.exit(1))() if __name__ == '__main__' else None"]
       interval: 30s

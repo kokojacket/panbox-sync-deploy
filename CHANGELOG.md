@@ -3,6 +3,8 @@
 ## [Unreleased] - 2026-03-23
 
 ### Changed
+- `docker-compose.yml`：为 PanBox Sync 与 SmartDNS 容器启用 Docker 原生 `json-file` 轮转，单文件 10 MiB、保留 3 份，避免容器日志无限增长。
+- `panbox-sync.sh`：更新时先下载并校验最新 Compose 配置，再停止旧服务；随后强制重建容器，确保日志驱动配置实际写入新容器并由 Docker 回收旧容器日志。
 - `panbox-sync.sh`：新增“增加空间”菜单项，可输入宿主机路径并自动创建 `<路径>/panbox-sync-disk`，挂载到容器内 `/data/disks/disk-N`。
 - `panbox-sync.sh`：新增本地 `docker-compose.extra.yml` override 机制，并统一 Compose 调用入口，确保安装、更新、重启、停止、卸载与额外空间重建都会保留本地挂载。
 - `docker-compose.yml`：显式声明 `PANBOX_SYNC_EXTRA_DOWNLOAD_ROOT=/data/disks`，与脚本新增空间的容器内受控挂载路径保持一致。

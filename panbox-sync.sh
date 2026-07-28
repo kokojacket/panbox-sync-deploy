@@ -2,7 +2,7 @@
 
 #==============================================================================
 # PanBox Sync 管理脚本
-# 版本：2026.06.06.1
+# 版本：2026.07.28.1
 # 用途：安装、更新、重启、停止、卸载 PanBox Sync 文件同步系统
 #
 # 快速安装（国内用户推荐使用代理加速）：
@@ -27,8 +27,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置变量
-INSTALL_DIR="/opt/panbox-sync"
-SCRIPT_VERSION="2026.06.06.1"
+INSTALL_DIR="${INSTALL_DIR:-/opt/panbox-sync}"
+SCRIPT_VERSION="2026.07.28.1"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 EXTRA_COMPOSE_FILE="$INSTALL_DIR/docker-compose.extra.yml"
 EXTRA_DISK_MOUNT_ROOT="/data/disks"
@@ -493,6 +493,30 @@ download_with_retry() {
     return 1
 }
 
+download_latest_compose_config() {
+    local tmp_file
+    tmp_file="$(mktemp "$INSTALL_DIR/docker-compose.yml.tmp.XXXXXX")"
+
+    if ! download_with_retry "$tmp_file" "${COMPOSE_URLS[@]}"; then
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    local compose_files=("-f" "$tmp_file")
+    if [ -f "$EXTRA_COMPOSE_FILE" ]; then
+        compose_files+=("-f" "$EXTRA_COMPOSE_FILE")
+    fi
+
+    if ! $DOCKER_COMPOSE_CMD --project-directory "$INSTALL_DIR" "${compose_files[@]}" config > /dev/null; then
+        rm -f "$tmp_file"
+        print_error "最新 Compose 配置校验失败，已保留当前配置和运行中的服务"
+        return 1
+    fi
+
+    mv "$tmp_file" "$INSTALL_DIR/docker-compose.yml"
+    print_success "Compose 配置已更新并通过校验"
+}
+
 #==============================================================================
 # 数据目录与迁移函数
 #==============================================================================
@@ -891,12 +915,6 @@ install_panbox() {
     # 推荐应用宿主机网络优化
     prompt_network_sysctl_optimizations
 
-    # 下载 docker-compose.yml（自动尝试多个备用地址）
-    print_info "下载配置文件..."
-    if ! download_with_retry "$INSTALL_DIR/docker-compose.yml" "${COMPOSE_URLS[@]}"; then
-        exit 1
-    fi
-
     # 查找可用端口
     print_info "检测可用端口..."
     AVAILABLE_PORT=$(find_available_port)
@@ -905,6 +923,12 @@ install_panbox() {
 
     # 创建 .env 文件
     create_env_file
+
+    # 下载并校验 docker-compose.yml（自动尝试多个备用地址）
+    print_info "下载配置文件..."
+    if ! download_latest_compose_config; then
+        exit 1
+    fi
 
     # 拉取镜像
     print_info "拉取 Docker 镜像..."
@@ -949,17 +973,17 @@ update_panbox() {
 
     cd "$INSTALL_DIR"
 
-    # 先停止旧版 Compose，再执行数据迁移和配置更新
+    # 先获取并校验新配置，失败时不影响当前运行中的服务
+    detect_docker_gid
+    print_info "下载最新配置文件..."
+    if ! download_latest_compose_config; then
+        exit 1
+    fi
+
+    # 删除旧容器后执行数据迁移；绑定挂载的数据目录和业务文件保持不变
     stop_compose_services
     ensure_data_directories
     migrate_openlist_data_dir
-
-    # 更新 Compose 配置和环境变量
-    detect_docker_gid
-    print_info "下载最新配置文件..."
-    if ! download_with_retry "$INSTALL_DIR/docker-compose.yml" "${COMPOSE_URLS[@]}"; then
-        exit 1
-    fi
     create_env_file
 
     # 拉取最新镜像
@@ -973,7 +997,7 @@ update_panbox() {
 
     # 使用新 Compose 配置启动服务
     print_info "启动服务..."
-    if run_compose up -d; then
+    if run_compose up -d --force-recreate; then
         print_success "服务更新成功"
     else
         print_error "服务更新失败"
@@ -1212,5 +1236,7 @@ main() {
     done
 }
 
-# 运行主函数
-main "$@"
+# 运行主函数（测试可只加载函数，不触发交互菜单）
+if [ "${PANBOX_SYNC_TEST_MODE:-0}" != "1" ]; then
+    main "$@"
+fi
