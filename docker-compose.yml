@@ -43,6 +43,8 @@ services:
     environment:
       # 生产模式（禁用自动重载以提升性能和稳定性）
       - ENVIRONMENT=production
+      - DEBUG=false
+      - SQL_ECHO=false
       - PANBOX_SYNC_CONTAINER_MODE=true
       - PANBOX_SYNC_DATA_DIR=/data
       - PANBOX_SYNC_EXTRA_DOWNLOAD_ROOT=/data/disks
