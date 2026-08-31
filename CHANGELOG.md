@@ -3,6 +3,7 @@
 ## [Unreleased] - 2026-08-03
 
 ### Changed
+- `docker-compose.yml`：健康检查同时探测 PanBox Sync 后端与内置 OpenList，配合入口监督避免 OpenList 进程退出后容器仍显示健康。
 - `docker-compose.yml`：生产容器显式设置 `DEBUG=false` 与 `SQL_ECHO=false`，避免扫描任务持续输出逐条 SQL 日志。
 - `docker-compose.yml`：为 PanBox Sync 与 SmartDNS 容器启用 Docker 原生 `json-file` 轮转，单文件 10 MiB、保留 3 份，避免容器日志无限增长。
 - `panbox-sync.sh`：更新时先下载并校验最新 Compose 配置，再停止旧服务；随后强制重建容器，确保日志驱动配置实际写入新容器并由 Docker 回收旧容器日志。
