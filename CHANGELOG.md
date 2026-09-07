@@ -1,8 +1,10 @@
 # Changelog
 
-## [Unreleased] - 2026-08-03
+## [Unreleased] - 2026-09-07
 
 ### Changed
+- PanBox Sync 1.0.7 镜像启动时将内置 OpenList 缺失或为 `0` 的 `min_free_memory` 设置为 `-1`，默认使用磁盘缓存以降低大文件上传的内存占用；已有非零自定义值保留，配置文件采用原子替换。
+- `panbox-sync.sh`：脚本版本更新为 `2026.09.07.1`，同步本次镜像默认配置调整的部署说明。
 - `docker-compose.yml`：健康检查同时探测 PanBox Sync 后端与内置 OpenList，配合入口监督避免 OpenList 进程退出后容器仍显示健康。
 - `docker-compose.yml`：生产容器显式设置 `DEBUG=false` 与 `SQL_ECHO=false`，避免扫描任务持续输出逐条 SQL 日志。
 - `docker-compose.yml`：为 PanBox Sync 与 SmartDNS 容器启用 Docker 原生 `json-file` 轮转，单文件 10 MiB、保留 3 份，避免容器日志无限增长。

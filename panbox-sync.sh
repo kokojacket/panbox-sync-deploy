@@ -2,7 +2,7 @@
 
 #==============================================================================
 # PanBox Sync 管理脚本
-# 版本：2026.07.28.1
+# 版本：2026.09.07.1
 # 用途：安装、更新、重启、停止、卸载 PanBox Sync 文件同步系统
 #
 # 快速安装（国内用户推荐使用代理加速）：
@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 INSTALL_DIR="${INSTALL_DIR:-/opt/panbox-sync}"
-SCRIPT_VERSION="2026.07.28.1"
+SCRIPT_VERSION="2026.09.07.1"
 SELF_UPDATE_RESTARTED_ENV="PANBOX_SCRIPT_SELF_UPDATED"
 EXTRA_COMPOSE_FILE="$INSTALL_DIR/docker-compose.extra.yml"
 EXTRA_DISK_MOUNT_ROOT="/data/disks"
