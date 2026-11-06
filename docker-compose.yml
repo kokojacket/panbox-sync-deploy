@@ -62,8 +62,11 @@ services:
       # 可选：覆盖默认设置
       # - LOG_LEVEL=INFO
       # - MAX_CONCURRENT_DOWNLOADS=3
+    # SmartDNS 优先；它停止或异常时，Docker 依次改用后面的公共 DNS（最多生效 3 个），避免整个容器断解析
     dns:
       - 172.28.0.53
+      - 223.5.5.5
+      - 119.29.29.29
     networks:
       panbox-network:
         ipv4_address: 172.28.0.10

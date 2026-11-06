@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] - 2026-11-07
+
+### Fixed
+- `docker-compose.yml`：PanBox Sync 容器在 SmartDNS（`172.28.0.53`）之后增加 `223.5.5.5`、`119.29.29.29` 两个备用 DNS。此前 SmartDNS 是容器唯一的 DNS，它被停止、崩溃或配置缺少上游时，内置 OpenList 的网盘传输、License 校验和版本检查会全部解析失败；现在 SmartDNS 正常时仍优先使用它，加速与分流不受影响，它不可用时改用备用 DNS（解析会变慢，但不会断网）。执行一次更新即可拿到新的 Compose 配置。
+- `panbox-sync.sh`：脚本版本更新为 `2026.11.07.1`，同步本次 Compose 配置调整。
+
 ## [Unreleased] - 2026-09-07
 
 ### Changed
